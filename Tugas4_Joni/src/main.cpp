@@ -7,6 +7,15 @@
 #define LED3_PUTIH 16
 #define LED4_HIJAU2 17
 
+#include <Arduino.h>
+#include <Wire.h>
+#include <EEPROM.h>
+
+#define LED1_HIJAU1 2
+#define LED2_MERAH 4
+#define LED3_PUTIH 16
+#define LED4_HIJAU2 17
+
 #define TOMBOL_AUTO 15
 
 #define BH1750_ADDRESS 0x23
@@ -15,7 +24,7 @@
 #define EEPROM_SIZE 1
 
 int Led_Array[4] = {LED1_HIJAU1, LED2_MERAH, LED3_PUTIH, LED4_HIJAU2};
-unsigned char Status_Auto = LOW;
+int Status_Auto = LOW;
 bool changeStatusAuto = false;
 void LedON(int LedNumber);
 void AutoBrightness();
@@ -34,8 +43,6 @@ portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
 char readData[EEPROM_SIZE], receivedData[EEPROM_SIZE];
 int dataIndex =0;
 
-char Auto;
-
 byte buff[2];
 unsigned short lux = 0;
 void BacaLux();
@@ -45,7 +52,7 @@ void writeEEPROM(int address, char * data);
 
 void IRAM_ATTR gpioISR() {
   portENTER_CRITICAL(&gpioIntMux);
-  changeStatusAuto = LOW;
+  changeStatusAuto = true;
   portEXIT_CRITICAL(&gpioIntMux);
 }
 
@@ -54,23 +61,21 @@ void BacaEEPROM() {
   delay(100);
   readEEPROM(0, readData);
   Status_Auto = EEPROM.read(0);
-  Serial.println("Data EEPROM: ");
+  Serial.print("Data EEPROM: ");
   Serial.println(readData);
   Serial.println(Status_Auto);
+
 }
 
 void TulisEEPROM() {
-  if (changeStatusAuto == LOW  && digitalRead(TOMBOL_AUTO) == LOW ) {
+  if (changeStatusAuto) {
     portENTER_CRITICAL(&gpioIntMux);
-    changeStatusAuto = HIGH;
+    changeStatusAuto = false;
     portEXIT_CRITICAL(&gpioIntMux);
 
     Status_Auto = !Status_Auto;
-   // Serial.println("Status AutoBrightness = " + String(Status_Auto));
     EEPROM.write(0, Status_Auto);
-    EEPROM.commit();
-   // writeEEPROM(0, Status_Auto);
-   // memset(Status_Auto, 0, EEPROM_SIZE); 
+    EEPROM.commit(); 
   }
 }
 

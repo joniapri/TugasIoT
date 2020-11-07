@@ -1,4 +1,3 @@
-#include <Arduino.h>
 #include <Wire.h>
 
 #define BHI1750_ADDRESS 0x23
@@ -8,7 +7,8 @@
 #define LED3_PUTIH 16
 #define LED4_HIJAU2 17
 #define TOMBOL_AUTO 15
-int Auto_Status = LOW;
+
+bool Auto_Status = false;
 
 int LedArray[4] = {LED1_HIJAU1, LED2_MERAH, LED3_PUTIH, LED4_HIJAU2};
 
@@ -17,6 +17,7 @@ int bh1750GetData (int address);
 
 byte buff[2];
 unsigned short lux = 0;
+void LedON(int LedNumber);
 
 void setup() {
   Wire.begin();
@@ -29,60 +30,35 @@ void setup() {
 }
 
 void LedON(int LedNumber) {
-  for (int i = 0; i < 4; i++) {
-    if (i == LedNumber) {
+  for (int i = 0; i < LedNumber; i++) {
     digitalWrite(LedArray[i], HIGH);
     }
-    else {
-    digitalWrite(LedArray[i], LOW);
+  
+  for (int i = 0; i < 4 - LedNumber; i++) {
+    digitalWrite(LedArray[3-i], LOW);
     }
-  }
+  
 }
 
 void AutoBrighness() {
-if ((lux) >= 0 && (lux) < 250 ) {
-   // LedON(0);
-   // LedON(1);
-   // LedON(2);
-   // LedON(3);
-   digitalWrite(LED1_HIJAU1, HIGH);
-   digitalWrite(LED2_MERAH, HIGH);
-   digitalWrite(LED3_PUTIH, HIGH);
-   digitalWrite(LED4_HIJAU2, HIGH);
+  if ((lux) >= 0 && (lux) < 250 ) {
+   LedON(4);
   }
 
-    if ((lux) >= 250 && (lux) < 500 ) {
-  //  LedON(0);
-  //  LedON(1);
-  //  LedON(2);
-   digitalWrite(LED1_HIJAU1, HIGH);
-   digitalWrite(LED2_MERAH, HIGH);
-   digitalWrite(LED3_PUTIH, HIGH);
-   digitalWrite(LED4_HIJAU2, LOW);
+  if ((lux) >= 250 && (lux) < 500 ) {
+    LedON(3);
   }
 
   if ((lux) >= 500 && (lux) < 750 ) {
-  //  LedON(0);
-  //  LedON(1);
-   digitalWrite(LED1_HIJAU1, HIGH);
-   digitalWrite(LED2_MERAH, HIGH);
-   digitalWrite(LED3_PUTIH, LOW);
-   digitalWrite(LED4_HIJAU2, LOW);
+    LedON(2);
   }
 
   if ((lux) >= 750 && (lux) < 1000 ) {
-   // LedON(0);
-   digitalWrite(LED1_HIJAU1, HIGH);
-   digitalWrite(LED2_MERAH, LOW);
-   digitalWrite(LED3_PUTIH, LOW);
-   digitalWrite(LED4_HIJAU2, LOW);
+    LedON(1);
   }
 
   if ((lux) >= 1000 ) {
-   digitalWrite(LED1_HIJAU1, LOW);
-   digitalWrite(LED2_MERAH, LOW);
-   digitalWrite(LED3_PUTIH, LOW);
-   digitalWrite(LED4_HIJAU2, LOW);
+   LedON(0);
   }
 }
 
@@ -103,11 +79,9 @@ void loop() {
     AutoBrighness();
   }  
   else {
-   digitalWrite(LED1_HIJAU1, HIGH);
-   digitalWrite(LED2_MERAH, HIGH);
-   digitalWrite(LED3_PUTIH, HIGH);
-   digitalWrite(LED4_HIJAU2, HIGH);
+    LedON(4);
   }
+  
   Serial.println("Status Autobrightness = " + String(Auto_Status));
   delay (1000);
 
