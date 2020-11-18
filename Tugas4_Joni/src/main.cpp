@@ -1,172 +1,143 @@
 #include <Arduino.h>
 #include <Wire.h>
+#include <SPI.h>
 #include <EEPROM.h>
 
 #define LED1_HIJAU1 2
 #define LED2_MERAH 4
 #define LED3_PUTIH 16
 #define LED4_HIJAU2 17
-
-#include <Arduino.h>
-#include <Wire.h>
-#include <EEPROM.h>
-
-#define LED1_HIJAU1 2
-#define LED2_MERAH 4
-#define LED3_PUTIH 16
-#define LED4_HIJAU2 17
-
 #define TOMBOL_AUTO 15
 
 #define BH1750_ADDRESS 0x23
 #define BH1750_DATALEN 2
+#define EEPROM_SIZE 96
+#define AUTOBRIGHTNESS_ADDRESS 0
+#define SSIDPASS_ADDRESS 32
+#define SSIDPASS_SIZE 64
 
-#define EEPROM_SIZE 1
-
-int Led_Array[4] = {LED1_HIJAU1, LED2_MERAH, LED3_PUTIH, LED4_HIJAU2};
-int Status_Auto = LOW;
-bool changeStatusAuto = false;
-void LedON(int LedNumber);
-void AutoBrightness();
-
-portMUX_TYPE gpioIntMux = portMUX_INITIALIZER_UNLOCKED;
+bool autoBrightness = false, buttonPressed = false;
+byte buff[2] = "";
+byte Led_Array[4] = {LED1_HIJAU1, LED2_MERAH, LED3_PUTIH, LED4_HIJAU2};
+unsigned short lux = 0;
+String dataReceived, ssid, password;
+char ssidPassRead[SSIDPASS_SIZE];
 
 void bh1750Request(int address);
-int bh1750GetData(int address);
-
-volatile bool statusInterrupt = false;
-int totalCounterInterrupt = 0;
-
-hw_timer_t * timer = NULL;
-portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
-
-char readData[EEPROM_SIZE], receivedData[EEPROM_SIZE];
-int dataIndex =0;
-
-byte buff[2];
-unsigned short lux = 0;
-void BacaLux();
-
-void readEEPROM(int address, char * data);
-void writeEEPROM(int address, char * data);
+int bh1750Read(int address);
+void LedON(int LedNumber);
+void readEEPROM(int address, char *data, int size);
+void writeEEPROM(int address, const char *data, int size);
 
 void IRAM_ATTR gpioISR() {
-  portENTER_CRITICAL(&gpioIntMux);
-  changeStatusAuto = true;
-  portEXIT_CRITICAL(&gpioIntMux);
-}
-
-void BacaEEPROM() {
-  EEPROM.begin(EEPROM_SIZE);
-  delay(100);
-  readEEPROM(0, readData);
-  Status_Auto = EEPROM.read(0);
-  Serial.print("Data EEPROM: ");
-  Serial.println(readData);
-  Serial.println(Status_Auto);
-
-}
-
-void TulisEEPROM() {
-  if (changeStatusAuto) {
-    portENTER_CRITICAL(&gpioIntMux);
-    changeStatusAuto = false;
-    portEXIT_CRITICAL(&gpioIntMux);
-
-    Status_Auto = !Status_Auto;
-    EEPROM.write(0, Status_Auto);
-    EEPROM.commit(); 
-  }
+  buttonPressed = true;
 }
 
 void setup() {
-  BacaEEPROM();
-  Wire.begin();
   Serial.begin(9600);
   for (int i = 0; i < 4; i++) {
     pinMode(Led_Array[i], OUTPUT);
   }
   pinMode(TOMBOL_AUTO, INPUT_PULLUP);
- 
-  attachInterrupt(TOMBOL_AUTO, &gpioISR, FALLING);
+  attachInterrupt(TOMBOL_AUTO, &gpioISR, FALLING); 
+
+  Wire.begin();
+  EEPROM.begin(EEPROM_SIZE);
   
+  //Read autobrightness status
+  Serial.println("[Setup] Start reading autobrightness status....");
+  char readChar = EEPROM.read(0);
+  if (readChar == 1) {
+    Serial.println("[Setup] Autobrightness is active");
+    autoBrightness = true;
+  }
+  else {
+    Serial.println("[Setup] Autobrightness is non active");
+    autoBrightness = false;
+    LedON(4);
+  }
+  delay(1000);
+
+  //Read SSID and Password
+  readEEPROM(SSIDPASS_ADDRESS, ssidPassRead, SSIDPASS_SIZE);
+  String ssidPassString = String(ssidPassRead);
+  int firstPos = 0, secondPos = 0;
+
+  firstPos = ssidPassString.indexOf(";");
+  ssid = ssidPassString.substring(0, firstPos);
+  Serial.println("SSID: " + ssid);
+
+  secondPos = ssidPassString.indexOf(";", firstPos + 1);
+  password = ssidPassString.substring(firstPos + 1, secondPos);
+  Serial.println("Password: " + password);
 }
 
 void loop() {
-  TulisEEPROM();
-  BacaLux();
- 
-  if (Status_Auto == LOW) {
-    Serial.println("Status Auto Brightness TIDAK AKTIF ");
-    LedON(4);
-   
-    Serial.println(" ");
-    delay(1000);
-  }
-
-  if (Status_Auto == HIGH) {
-    Serial.println("Status Auto Brightness AKTIF ");
-    AutoBrightness();
-    Serial.println(" ");
-    delay(1000);
-  }
-
-}
-
-void LedON(int LedNumber) {
-  for (int i = 0; i < LedNumber; i++) {
-    digitalWrite(Led_Array[i], HIGH);
-  }
-
-  for (int i = 0; i < 4 - LedNumber; i++) {
-    digitalWrite(Led_Array[3-i], LOW);
-  }
-}
-     
-void AutoBrightness() {
-  if (lux >= 0 && lux < 250) {
-    LedON(4);
-    Serial.println("4 Lampu menyala");
-  }
-
-  if (lux >= 250 && lux < 500) {
-    LedON(3);
-    Serial.println("3 Lampu menyala");
-  }
-
-  if (lux >= 500 && lux < 750) {
-    LedON(2);
-    Serial.println("2 Lampu menyala");
-  }
-
-  if (lux >= 750 && lux < 1000) {
-    LedON(1);
-    Serial.println("1 Lampu menyala");
-  }
-
-  if (lux >= 1000) {
-    LedON(0);
-    Serial.println("Tidak ada Lampu menyala");
-  }
-}
-
-void BacaLux() {
+  //Read Light Intensity
   bh1750Request(BH1750_ADDRESS);
   delay(200);
-  if (bh1750GetData(BH1750_ADDRESS) == BH1750_DATALEN) {
+  if (bh1750Read(BH1750_ADDRESS) == BH1750_DATALEN) {
     lux = (((unsigned short)buff[0] << 8) | (unsigned short)buff[1]) / 1.2;
     Serial.println("Nilai intensitas cahaya = " + String(lux) + " lux");
+
+    if (autoBrightness) {
+      if (lux >= 0 && lux <= 250) {
+        Serial.println("4 Lampu menyala");
+        LedON(4);
+      }
+
+      else if (lux > 250 && lux <= 500) {
+        Serial.println("3 Lampu menyala");
+        LedON(3);
+      }
+
+      else if (lux > 500 && lux <= 750) {
+        Serial.println("2 Lampu menyala");
+        LedON(2);
+      }
+
+      else if (lux > 750 && lux <= 1000) {
+        Serial.println("1 Lampu menyala");
+        LedON(1);
+      }
+
+      else {
+        Serial.println("Tidak ada Lampu menyala");
+        LedON(0);
+      }
+      delay(1000);
+    }
   }
-  delay(1000);  
+
+  //check if button has been pressed and start writing to EEPROM
+  if (buttonPressed) {
+    if (autoBrightness) {
+      Serial.println("[ISR] Turn off autobrigtness");
+      EEPROM.write(0, 0);
+    }
+    else {
+      Serial.println("[ISR] Turn on autobrigtness");
+      EEPROM.write(0, 1);
+    }
+    EEPROM.commit();
+    autoBrightness = !autoBrightness;
+    buttonPressed = false;
+  }
+
+  // Chaeck data coming from PC
+  while (Serial.available()) {
+    char c = Serial.read();
+    dataReceived += c;
+
+    if (c == '\n') { // End of command
+      Serial.println("[MAIN] Received data from user: " + dataReceived);
+      writeEEPROM(SSIDPASS_ADDRESS, dataReceived.c_str(), dataReceived.length());
+      dataReceived = "";
+    }
+  }
 }
 
-void bh1750Request(int address) {
-  Wire.beginTransmission(address);
-  Wire.write(0x10);
-  Wire.endTransmission();
-}
-
-int bh1750GetData(int address) {
+int bh1750Read(int address) {
   int i = 0;
   Wire.beginTransmission(address);
   Wire.requestFrom(address, 2);
@@ -179,17 +150,36 @@ int bh1750GetData(int address) {
   return i;
 }
 
-void readEEPROM(int address, char * data) {
-  for (int i = 0; i < EEPROM_SIZE; i++) {
-    data[i] = EEPROM.read(address + 1);
-  }
+void bh1750Request(int address) {
+  Wire.beginTransmission(address);
+  Wire.write(0x10);
+  Wire.endTransmission();
 }
 
-void writeEEPROM(int address, char * data) {
-  Serial.println("Mulai tulis ke EEPROM");
-  for (int i = 0; i < EEPROM_SIZE; i++) {
+void LedON(int LedNumber) {
+  for (int i = 0; i < LedNumber; i++) {
+    digitalWrite(Led_Array[i], HIGH);
+  }
+
+  for (int i = 0; i < 4 - LedNumber; i++) {
+    digitalWrite(Led_Array[3 - i], LOW);
+  }
+}
+ 
+void readEEPROM(int address, char *data, int size) {
+  Serial.println("[EEPROM] Start reading from EEPROM");
+  for (int i = 0; i < size; i++) {
+    data[i] = EEPROM.read(address + i);
+  } 
+}
+
+
+void writeEEPROM(int address, const char *data, int size) {
+  Serial.println("[EEPROM] Start writing to EEPROM");
+  for (int i = 0; i < size; i++) {
     EEPROM.write(address + 1, data[i]);
   }
   EEPROM.commit();
-
 }
+
+
