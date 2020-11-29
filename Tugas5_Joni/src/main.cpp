@@ -225,6 +225,70 @@ void BacaSsidPassword() {
   petikKedua = DataStringSsidPass.indexOf(";", petikPertama + 1);
   Password = DataStringSsidPass.substring(petikPertama + 1, petikKedua);
   Serial.println("Password = " + Password);
+<<<<<<< HEAD
+=======
+}
+
+void readEEPROM(int address, char *Data, int size) {
+  Serial.println("[EEPROM] mulai membaca dari EEPROM");
+  for(int i = 0; i < size; i++) {
+    Data[i] = EEPROM.read(address + i);
+  }
+}
+
+void CekStatusAuto() {   //OK
+  EEPROM.begin(128);
+  delay(100);
+  char Otomatis = EEPROM.read(0);
+  Serial.println("Read Otomatis : " + char(Otomatis));
+  if (Otomatis == '1') { 
+    Serial.println("Otomatis = ON");
+    statusAuto = 1;
+    digitalWrite(BUILTIN_LED, HIGH);  
+  }
+  else {
+    Serial.println("Otomatis = OFF");
+    statusAuto = 0;
+    digitalWrite(BUILTIN_LED, LOW);  
+  }
+}
+
+void BacaPerubahanTombol() {  //OK
+  if (buttonPressed) {
+    if (statusAuto) {
+      Serial.println("[ISR] mematikan auto");
+      EEPROM.write(0, '0');
+    }
+    else {
+      Serial.println("[ISR] menghidupkan auto");
+      EEPROM.write(0, '1');
+    }
+    EEPROM.commit();
+    statusAuto = !statusAuto;
+    buttonPressed = false;
+  }
+}
+
+void BacaStatusSerial() {
+  while (Serial.available()) {
+    char DataSerial = Serial.read();
+    DataReceived += DataSerial;
+    
+    if (DataSerial == '\n') {
+      Serial.println("Data diterima dari user: " + DataReceived);
+      writeEEPROM(SSIDPASS_ADDRESS, DataReceived.c_str(), DataReceived.length());
+      DataReceived ="";
+    }
+  }
+}
+
+void writeEEPROM(int address, const char *data, int size) {
+  Serial.println("[EEPROM] mulai menulis ke EEPROM");
+  for (int i = 0; i < size; i++) {
+    EEPROM.write(address + i, data[i]);
+  }
+  EEPROM.commit();
+>>>>>>> 8d4a54ab02e09ad41b50b82bbbdfba7e6382fd3c
 }
 
 void readEEPROM(int address, char *Data, int size) {
