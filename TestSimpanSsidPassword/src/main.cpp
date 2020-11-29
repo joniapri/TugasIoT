@@ -262,4 +262,8 @@ void writeEEPROM(int alamat, char * Data, String text){
   for(int i = 0; i < 32; i++)
     EEPROM.write(alamat + i,Data[i]);
   EEPROM.commit();
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 8828dabd3b6a88dbfeb080a0348b0eba33dfd4fe
